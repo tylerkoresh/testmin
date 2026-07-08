@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>MINOS // SIGINT Sky Tracker</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MINOS">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" href="icons/icon-192.png">
+
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- hidden source video -->
+  <video id="video" playsinline muted autoplay></video>
+
+  <!-- layered canvases -->
+  <canvas id="viewCanvas"></canvas>
+  <canvas id="hudCanvas"></canvas>
+
+  <!-- scanline / CRT overlay -->
+  <div id="scanlines"></div>
+
+  <!-- boot / permission screen -->
+  <div id="bootScreen">
+    <div class="boot-title">M I N O S</div>
+    <div class="boot-sub">SIGINT // SKY TRACKER — WEB BUILD</div>
+    <div class="boot-desc">
+      Local camera analysis only.<br>
+      No signal is transmitted. No aircraft or drone is interfaced with.<br>
+      Everything runs on this device.
+    </div>
+    <button id="startBtn">▶ START SCANNER</button>
+    <div id="bootStatus"></div>
+  </div>
+
+  <!-- top status bar -->
+  <div id="topBar" class="hidden">
+    <span id="statFps">FPS --</span>
+    <span id="statMotion">PTS --</span>
+    <span id="statLock">SCANNING</span>
+    <span id="statZoom">1.0x</span>
+  </div>
+
+  <!-- side control panel -->
+  <div id="controls" class="hidden">
+    <button id="btnCapture" class="ctrl-btn primary">CAPTURE RETICLE</button>
+    <button id="btnUnlock" class="ctrl-btn">UNLOCK TARGET</button>
+    <button id="btnSnap" class="ctrl-btn">SNAP YOLO</button>
+    <button id="btnFlow" class="ctrl-btn toggle on">FLOW: ON</button>
+    <button id="btnMode" class="ctrl-btn">MODE: LINE</button>
+    <button id="btnRadar" class="ctrl-btn toggle on">RADAR: ON</button>
+    <button id="btnCompact" class="ctrl-btn">COMPACT</button>
+
+    <div class="slider-row">
+      <label>ZOOM <span id="zoomVal">1.0x</span></label>
+      <input type="range" id="zoomSlider" min="1" max="3" step="0.1" value="1">
+    </div>
+    <div class="slider-row">
+      <label>MOTION THRESH <span id="threshVal">8</span></label>
+      <input type="range" id="threshSlider" min="4" max="30" step="1" value="8">
+    </div>
+    <div class="slider-row">
+      <label>MAX POINTS <span id="maxPtsVal">180</span></label>
+      <input type="range" id="maxPtsSlider" min="50" max="300" step="10" value="180">
+    </div>
+    <div class="slider-row">
+      <label>LOCK RADIUS <span id="lockRadVal">70</span></label>
+      <input type="range" id="lockRadSlider" min="30" max="140" step="5" value="70">
+    </div>
+  </div>
+
+  <div id="unsupportedNote" class="hidden">
+    Manual focus / exposure lock is not available on this browser — this is an iOS Safari
+    limitation, not a bug in this app.
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.min.js"></script>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
