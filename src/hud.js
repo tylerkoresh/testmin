@@ -187,10 +187,11 @@ export class Hud {
 
       ctx.strokeStyle = color;
       ctx.lineWidth = 1.3;
-      ctx.globalAlpha = 0.9;
+      ctx.globalAlpha = d.stale ? 0.55 : 0.9; // coasting on a missed pass — dim slightly rather than jump/vanish
       ctx.strokeRect(x, y, w, h);
 
-      const text = `${d.label.toUpperCase()} ${Math.round(d.confidence * 100)}%`;
+      const pct = Math.round((d.confidence * 100) / 5) * 5; // round to nearest 5% so the label doesn't flicker every pass
+      const text = `${d.label.toUpperCase()} ${pct}%`;
       const textW = ctx.measureText(text).width;
       ctx.fillStyle = 'rgba(0,10,15,0.65)';
       ctx.fillRect(x, y - 13, textW + 6, 13);
