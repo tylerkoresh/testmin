@@ -12,8 +12,8 @@ export class MotionDetector {
     this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
 
     this.prevGray = null; // Uint8ClampedArray
-    this.threshold = 8;
-    this.minBlobArea = 2;    // in downscaled px
+    this.threshold = 14;     // raised from 8 — handheld shake was tripping edges everywhere at the old default
+    this.minBlobArea = 3;    // in downscaled px
     this.maxPoints = 180;
   }
 
@@ -30,12 +30,18 @@ export class MotionDetector {
     const frame = this.ctx.getImageData(0, 0, this.w, this.h);
     const data = frame.data;
     const n = this.w * this.h;
-    const gray = new Uint8ClampedArray(n);
+    let gray = new Uint8ClampedArray(n);
 
     for (let i = 0, p = 0; i < n; i++, p += 4) {
       // luminance
       gray[i] = (data[p] * 0.299 + data[p + 1] * 0.587 + data[p + 2] * 0.114) | 0;
     }
+
+    // Light blur dampens single-pixel sensor/shake noise (which the old
+    // unblurred diff was picking up as "motion" scattered across the whole
+    // frame) while a real moving object — several pixels wide — still
+    // survives the blur with enough contrast to cross the threshold.
+    gray = this._boxBlur3(gray, this.w, this.h);
 
     let mask = null;
     if (this.prevGray) {
@@ -62,6 +68,31 @@ export class MotionDetector {
       scaleX: sourceCanvas.width / this.w,
       scaleY: sourceCanvas.height / this.h
     };
+  }
+
+  // Cheap separable 3-tap box blur (horizontal pass then vertical pass),
+  // edge-clamped. Costs ~2 reads/write per pixel, negligible at 320x240.
+  _boxBlur3(src, w, h) {
+    const tmp = new Uint8ClampedArray(w * h);
+    const out = new Uint8ClampedArray(w * h);
+
+    for (let y = 0; y < h; y++) {
+      const row = y * w;
+      for (let x = 0; x < w; x++) {
+        const x0 = x > 0 ? x - 1 : 0;
+        const x1 = x < w - 1 ? x + 1 : w - 1;
+        tmp[row + x] = (src[row + x0] + src[row + x] + src[row + x1]) / 3;
+      }
+    }
+    for (let y = 0; y < h; y++) {
+      const y0 = y > 0 ? y - 1 : 0;
+      const y1 = y < h - 1 ? y + 1 : h - 1;
+      const row = y * w, rowUp = y0 * w, rowDown = y1 * w;
+      for (let x = 0; x < w; x++) {
+        out[row + x] = (tmp[rowUp + x] + tmp[row + x] + tmp[rowDown + x]) / 3;
+      }
+    }
+    return out;
   }
 
   // Simple 4-connectivity flood fill to group motion pixels into blobs.
