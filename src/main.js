@@ -39,7 +39,8 @@ setupUI({
   onZoom: (v) => camera.setZoom(v),
   onThreshold: (v) => motion.setThreshold(v),
   onMaxPoints: (v) => motion.setMaxPoints(v),
-  onLockRadius: (v) => tracker.setLockRadius(v)
+  onLockRadius: (v) => tracker.setLockRadius(v),
+  onMaxBlobSize: (v) => tracker.setMaxBlobArea(v)
 });
 
 // --- boot --------------------------------------------------------------
