@@ -150,11 +150,53 @@ export class Hud {
   }
 
   drawMotionPoints(points, scaleX, scaleY) {
+    // Sparkle-style render: soft glowing dabs instead of flat squares,
+    // sized a little by how big the underlying motion blob was.
     const ctx = this.ctx;
     ctx.save();
-    ctx.fillStyle = 'rgba(0,255,65,0.5)';
+    ctx.globalCompositeOperation = 'lighter';
     for (const p of points) {
-      ctx.fillRect(p.x * scaleX - 1, p.y * scaleY - 1, 2, 2);
+      const x = p.x * scaleX, y = p.y * scaleY;
+      const r = 2 + Math.min(6, Math.sqrt(p.area || 1) * 0.6);
+      const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+      grad.addColorStop(0, 'rgba(120,255,180,0.9)');
+      grad.addColorStop(0.4, 'rgba(0,255,65,0.55)');
+      grad.addColorStop(1, 'rgba(0,255,65,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  /**
+   * Continuous multi-object detection overlay — a blue box + label/confidence
+   * per detected object, drawn every frame from the latest full-frame YOLO pass.
+   */
+  drawDetections(detections, scaleX, scaleY) {
+    if (!detections || !detections.length) return;
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.font = '10px "Share Tech Mono", monospace';
+
+    for (const d of detections) {
+      const x = d.x * scaleX, y = d.y * scaleY;
+      const w = d.w * scaleX, h = d.h * scaleY;
+      const color = d.sky ? '#00ffe1' : '#39c1ff';
+
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.3;
+      ctx.globalAlpha = 0.9;
+      ctx.strokeRect(x, y, w, h);
+
+      const text = `${d.label.toUpperCase()} ${Math.round(d.confidence * 100)}%`;
+      const textW = ctx.measureText(text).width;
+      ctx.fillStyle = 'rgba(0,10,15,0.65)';
+      ctx.fillRect(x, y - 13, textW + 6, 13);
+      ctx.fillStyle = color;
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(text, x + 3, y);
     }
     ctx.restore();
   }
