@@ -76,6 +76,109 @@ export class YoloTagger {
     return this._decodeBest(output, { scale, padX, padY, cropX, cropY, cropW, cropH });
   }
 
+  /**
+   * Runs one inference pass on the FULL frame and returns every confident
+   * detection (post-NMS), for continuous "scan everything" mode — the
+   * multi-box overlay, as opposed to tagRegion()'s single locked-target tag.
+   * Returns [{ label, confidence, sky, x, y, w, h }] in source-canvas px coords.
+   */
+  async detectFull(sourceCanvas, { scoreThreshold = 0.35, iouThreshold = 0.45, maxDet = 25 } = {}) {
+    if (!this.session) return [];
+
+    const fullBox = { x: 0, y: 0, w: sourceCanvas.width, h: sourceCanvas.height };
+    // no context margin needed for a full-frame pass — override the crop helper's
+    // default margin behavior by passing zero-margin geometry directly.
+    const scale = Math.min(INPUT_SIZE / fullBox.w, INPUT_SIZE / fullBox.h);
+    const drawW = fullBox.w * scale, drawH = fullBox.h * scale;
+    const padX = (INPUT_SIZE - drawW) / 2, padY = (INPUT_SIZE - drawH) / 2;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = INPUT_SIZE; canvas.height = INPUT_SIZE;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#727272';
+    ctx.fillRect(0, 0, INPUT_SIZE, INPUT_SIZE);
+    ctx.drawImage(sourceCanvas, 0, 0, fullBox.w, fullBox.h, padX, padY, drawW, drawH);
+
+    const imgData = ctx.getImageData(0, 0, INPUT_SIZE, INPUT_SIZE);
+    const input = this._toCHWFloat(imgData);
+
+    // eslint-disable-next-line no-undef
+    const tensor = new ort.Tensor('float32', input, [1, 3, INPUT_SIZE, INPUT_SIZE]);
+    const feeds = { [this.session.inputNames[0]]: tensor };
+    const results = await this.session.run(feeds);
+    const output = results[this.session.outputNames[0]];
+
+    return this._decodeAll(output, { scale, padX, padY, cropX: 0, cropY: 0 }, scoreThreshold, iouThreshold, maxDet);
+  }
+
+  _decodeAll(output, geom, scoreThreshold, iouThreshold, maxDet) {
+    const data = output.data;
+    const dims = output.dims; // [1, 84, 8400]
+    const numAttrs = dims[1];
+    const numAnchors = dims[2];
+    const numClasses = numAttrs - 4;
+
+    const candidates = [];
+    for (let a = 0; a < numAnchors; a++) {
+      let maxCls = -1, maxScore = 0;
+      for (let c = 0; c < numClasses; c++) {
+        const s = data[(4 + c) * numAnchors + a];
+        if (s > maxScore) { maxScore = s; maxCls = c; }
+      }
+      if (maxScore < scoreThreshold) continue;
+
+      const cx = data[0 * numAnchors + a];
+      const cy = data[1 * numAnchors + a];
+      const w = data[2 * numAnchors + a];
+      const h = data[3 * numAnchors + a];
+
+      candidates.push({
+        cls: maxCls, score: maxScore,
+        x1: cx - w / 2, y1: cy - h / 2, x2: cx + w / 2, y2: cy + h / 2
+      });
+    }
+
+    candidates.sort((a, b) => b.score - a.score);
+
+    // greedy per-class NMS
+    const kept = [];
+    const used = new Array(candidates.length).fill(false);
+    for (let i = 0; i < candidates.length && kept.length < maxDet; i++) {
+      if (used[i]) continue;
+      const a = candidates[i];
+      kept.push(a);
+      for (let j = i + 1; j < candidates.length; j++) {
+        if (used[j]) continue;
+        const b = candidates[j];
+        if (b.cls !== a.cls) continue;
+        if (this._iou(a, b) > iouThreshold) used[j] = true;
+      }
+    }
+
+    const { scale, padX, padY, cropX, cropY } = geom;
+    return kept.map((d) => {
+      const x1 = (d.x1 - padX) / scale + cropX;
+      const y1 = (d.y1 - padY) / scale + cropY;
+      const x2 = (d.x2 - padX) / scale + cropX;
+      const y2 = (d.y2 - padY) / scale + cropY;
+      const label = COCO_CLASSES[d.cls] || 'unknown';
+      return {
+        label, confidence: d.score, sky: SKY_CLASSES.has(label),
+        x: x1, y: y1, w: Math.max(1, x2 - x1), h: Math.max(1, y2 - y1)
+      };
+    });
+  }
+
+  _iou(a, b) {
+    const ix1 = Math.max(a.x1, b.x1), iy1 = Math.max(a.y1, b.y1);
+    const ix2 = Math.min(a.x2, b.x2), iy2 = Math.min(a.y2, b.y2);
+    const iw = Math.max(0, ix2 - ix1), ih = Math.max(0, iy2 - iy1);
+    const inter = iw * ih;
+    const areaA = (a.x2 - a.x1) * (a.y2 - a.y1);
+    const areaB = (b.x2 - b.x1) * (b.y2 - b.y1);
+    return inter / (areaA + areaB - inter || 1e-6);
+  }
+
   _letterboxCrop(sourceCanvas, box) {
     // Expand box by 40% margin so YOLO sees context around the locked target.
     const marginX = box.w * 0.4;
