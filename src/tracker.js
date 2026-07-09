@@ -19,10 +19,13 @@ export class Tracker {
     this.lostFrames = 0;
     this.flowEnabled = true;
     this.lockRadius = 70;    // in downscaled px
+    this.maxBlobArea = 350;  // blobs bigger than this (tree lines, shake-induced
+                              // rooftop/edge noise) are treated as background, not targets
   }
 
   setFlowEnabled(v) { this.flowEnabled = v; }
   setLockRadius(r) { this.lockRadius = r; }
+  setMaxBlobArea(a) { this.maxBlobArea = a; }
 
   /**
    * Attempt to lock onto the strongest motion blob near the reticle (frame center).
@@ -35,6 +38,7 @@ export class Tracker {
 
     let candidate = null;
     let bestScore = -1;
+    let sawOnlyOversized = false;
 
     for (const blob of motionResult.blobs) {
       const dx = blob.cx - cx;
@@ -42,7 +46,14 @@ export class Tracker {
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist > this.lockRadius) continue;
 
-      // score favors larger, closer blobs
+      if (blob.area > this.maxBlobArea) {
+        // Too big to plausibly be a small aerial target at current zoom —
+        // almost certainly background (tree/roofline) shaken by hand tremor.
+        sawOnlyOversized = true;
+        continue;
+      }
+
+      // score favors larger (within the size cap), closer blobs
       const score = blob.area - dist * 1.5;
       if (score > bestScore) {
         bestScore = score;
@@ -51,7 +62,10 @@ export class Tracker {
     }
 
     if (!candidate) {
-      return { locked: false, reason: 'NO MOTION NEAR RETICLE' };
+      return {
+        locked: false,
+        reason: sawOnlyOversized ? 'ONLY LARGE BACKGROUND MOTION (ZOOM IN?)' : 'NO MOTION NEAR RETICLE'
+      };
     }
 
     this.kalman = new Kalman2D(candidate.cx, candidate.cy);
@@ -90,9 +104,12 @@ export class Tracker {
 
     let measured = null;
 
-    // 1) prefer a motion blob near the prediction
+    // 1) prefer a motion blob near the prediction (still excluding oversized
+    //    background blobs — this is what previously let the box "jump" onto
+    //    a tree/roofline during reacquire when the real target's signal was weak)
     let bestBlob = null, bestDist = Infinity;
     for (const blob of motionResult.blobs) {
+      if (blob.area > this.maxBlobArea) continue;
       const dx = blob.cx - pred.x, dy = blob.cy - pred.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
       const searchR = this.state === 'searching' ? this.lockRadius * 1.8 : this.lockRadius;
