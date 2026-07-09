@@ -59,10 +59,15 @@
     <button id="btnMode" class="ctrl-btn">MODE: LINE</button>
     <button id="btnRadar" class="ctrl-btn toggle on">RADAR: ON</button>
     <button id="btnCompact" class="ctrl-btn">COMPACT</button>
+    <button id="btnAutoScan" class="ctrl-btn toggle">AUTO-SCAN: OFF</button>
 
     <div class="slider-row">
       <label>ZOOM <span id="zoomVal">1.0x</span></label>
       <input type="range" id="zoomSlider" min="1" max="3" step="0.1" value="1">
+    </div>
+    <div class="slider-row">
+      <label>SCAN CONFIDENCE <span id="scanConfVal">0.35</span></label>
+      <input type="range" id="scanConfSlider" min="0.15" max="0.7" step="0.05" value="0.35">
     </div>
     <div class="slider-row">
       <label>MOTION THRESH <span id="threshVal">8</span></label>
