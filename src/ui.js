@@ -38,6 +38,21 @@ export function setupUI(handlers) {
     $('controls').classList.toggle('compact');
   });
 
+  const autoScanBtn = $('btnAutoScan');
+  autoScanBtn.addEventListener('click', () => {
+    const on = !autoScanBtn.classList.contains('on');
+    autoScanBtn.classList.toggle('on', on);
+    autoScanBtn.textContent = `AUTO-SCAN: ${on ? 'ON' : 'OFF'}`;
+    handlers.onAutoScanToggle(on);
+  });
+
+  const scanConfSlider = $('scanConfSlider');
+  scanConfSlider.addEventListener('input', () => {
+    const v = parseFloat(scanConfSlider.value);
+    $('scanConfVal').textContent = v.toFixed(2);
+    handlers.onScanConfidence(v);
+  });
+
   const zoomSlider = $('zoomSlider');
   zoomSlider.addEventListener('input', () => {
     const v = parseFloat(zoomSlider.value);
