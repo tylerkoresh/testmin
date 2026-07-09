@@ -11,7 +11,9 @@
 *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 
 html,body{
-  margin:0; padding:0; width:100%; height:100%;
+  margin:0; padding:0; width:100%;
+  height:100vh;
+  height:100dvh; /* dvh accounts for Safari's collapsing address/toolbar; falls back to vh above */
   background:var(--bg);
   overflow:hidden;
   font-family:'Share Tech Mono', monospace;
@@ -21,7 +23,9 @@ html,body{
 
 #app{
   position:fixed; inset:0;
-  width:100vw; height:100vh;
+  width:100vw;
+  height:100vh;
+  height:100dvh;
   background:#000;
 }
 
@@ -91,31 +95,38 @@ video{ display:none; }
   text-shadow:0 0 6px var(--green-glow);
 }
 
-/* controls panel */
+/* controls panel — pinned between the real top bar height and the real safe-area
+   bottom inset (not a guessed vh number), so it can never run off-screen; it
+   scrolls internally instead if content is taller than the available space. */
 #controls{
-  position:absolute; right:0; bottom:0; z-index:10;
-  width:46vw; max-width:220px;
-  padding:10px;
-  padding-bottom:calc(10px + env(safe-area-inset-bottom,0px));
+  position:absolute; right:0; z-index:10;
+  top:calc(34px + env(safe-area-inset-top,0px));
+  bottom:calc(6px + env(safe-area-inset-bottom,0px));
+  width:44vw; max-width:210px;
+  padding:8px;
   background:var(--panel-bg);
   border-left:1px solid var(--green-dim);
   border-top:1px solid var(--green-dim);
+  border-bottom:1px solid var(--green-dim);
   border-top-left-radius:8px;
-  display:flex; flex-direction:column; gap:6px;
-  max-height:78vh; overflow-y:auto;
+  border-bottom-left-radius:8px;
+  display:flex; flex-direction:column; gap:5px;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
   transition:transform 0.25s ease, opacity 0.25s ease;
 }
 #controls.compact{
-  transform:translateX(calc(100% - 40px));
+  transform:translateX(calc(100% - 36px));
   opacity:0.55;
 }
 
 .ctrl-btn{
-  font-family:inherit; font-size:2.9vw;
+  font-family:inherit; font-size:2.7vw;
   background:transparent; color:var(--green);
   border:1px solid var(--green-dim);
-  border-radius:4px; padding:9px 6px;
-  letter-spacing:0.03em;
+  border-radius:4px; padding:7px 6px;
+  letter-spacing:0.02em;
+  flex-shrink:0;
 }
 .ctrl-btn.primary{
   border-color:var(--green); box-shadow:0 0 10px rgba(0,255,65,0.35) inset;
@@ -124,17 +135,19 @@ video{ display:none; }
 .ctrl-btn.toggle.on{ background:rgba(0,255,65,0.15); }
 .ctrl-btn:active{ background:rgba(0,255,65,0.25); }
 
-.slider-row{ display:flex; flex-direction:column; gap:2px; margin-top:4px; }
-.slider-row label{ font-size:2.5vw; color:var(--green-dim); display:flex; justify-content:space-between; }
+.slider-row{ display:flex; flex-direction:column; gap:2px; margin-top:3px; flex-shrink:0; }
+.slider-row label{ font-size:2.3vw; color:var(--green-dim); display:flex; justify-content:space-between; }
 .slider-row input[type=range]{
-  width:100%; accent-color:var(--green);
+  width:100%; accent-color:var(--green); margin:0;
 }
 
 #unsupportedNote{
-  position:absolute; left:8px; bottom:8px; z-index:10;
-  max-width:55vw; font-size:2.4vw; color:var(--green-dim);
-  background:rgba(0,0,0,0.5); padding:6px 8px; border-radius:4px;
+  position:absolute; left:8px; z-index:10;
+  bottom:calc(8px + env(safe-area-inset-bottom,0px));
+  max-width:52vw; font-size:2.2vw; color:var(--green-dim);
+  background:rgba(0,0,0,0.6); padding:6px 8px; border-radius:4px;
   border:1px solid var(--green-dim);
+  line-height:1.4;
 }
 
 @media (min-width:700px){
@@ -147,5 +160,5 @@ video{ display:none; }
   .ctrl-btn{ font-size:12px; }
   .slider-row label{ font-size:11px; }
   #unsupportedNote{ font-size:11px; max-width:320px; }
-  #controls{ width:220px; }
+  #controls{ width:210px; top:46px; }
 }
