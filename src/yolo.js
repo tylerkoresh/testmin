@@ -43,6 +43,14 @@ export class YoloTagger {
       onStatus('LOADING MODEL…');
       // eslint-disable-next-line no-undef
       ort.env.wasm.numThreads = 1; // conservative default; iOS Safari WASM threading support varies
+      // Critical for smoothness: without this, each inference pass runs on the
+      // same thread as the camera render loop and freezes the whole UI for its
+      // duration (this is what caused FPS to crater during AUTO-SCAN). Proxy
+      // mode runs the actual WASM inference in a Web Worker instead, so the
+      // camera feed and HUD keep rendering smoothly while a detection pass
+      // is in flight in the background.
+      // eslint-disable-next-line no-undef
+      ort.env.wasm.proxy = true;
       // eslint-disable-next-line no-undef
       this.session = await ort.InferenceSession.create(MODEL_URL, {
         executionProviders: ['wasm']
