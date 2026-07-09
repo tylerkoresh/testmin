@@ -40,7 +40,9 @@ setupUI({
   onThreshold: (v) => motion.setThreshold(v),
   onMaxPoints: (v) => motion.setMaxPoints(v),
   onLockRadius: (v) => tracker.setLockRadius(v),
-  onMaxBlobSize: (v) => tracker.setMaxBlobArea(v)
+  onMaxBlobSize: (v) => tracker.setMaxBlobArea(v),
+  onAutoScanToggle: (on) => { autoScanEnabled = on; if (on) scheduleAutoScan(); },
+  onScanConfidence: (v) => { scanConfidence = v; }
 });
 
 // --- boot --------------------------------------------------------------
@@ -92,6 +94,36 @@ function currentGrayFrame() {
 let lastMotionResult = { blobs: [], points: [], scaleX: 1, scaleY: 1 };
 let lastGray = null;
 
+// --- continuous "scan everything" mode -----------------------------------
+// Runs full-frame YOLO on its own self-scheduling loop (not tied to
+// requestAnimationFrame) so a slow inference pass never stalls the live
+// camera render. It waits for each pass to finish before queuing the next,
+// which avoids piling up overlapping WASM inference calls on a phone CPU.
+
+let autoScanEnabled = false;
+let autoScanBusy = false;
+let scanConfidence = 0.35;
+let latestDetections = [];
+const AUTO_SCAN_MIN_INTERVAL = 350; // ms floor between passes even if inference is fast
+
+function scheduleAutoScan() {
+  if (!autoScanEnabled || autoScanBusy) return;
+  if (!yolo.ready) { setTimeout(scheduleAutoScan, 500); return; }
+
+  autoScanBusy = true;
+  const startedAt = performance.now();
+
+  yolo.detectFull(viewCanvas, { scoreThreshold: scanConfidence })
+    .then((dets) => { latestDetections = dets; })
+    .catch(() => { /* skip a bad frame silently, keep scanning */ })
+    .finally(() => {
+      autoScanBusy = false;
+      const elapsed = performance.now() - startedAt;
+      const wait = Math.max(0, AUTO_SCAN_MIN_INTERVAL - elapsed);
+      if (autoScanEnabled) setTimeout(scheduleAutoScan, wait);
+    });
+}
+
 function doCapture() {
   if (!lastGray) return;
   const res = tracker.capture(lastMotionResult, lastGray, motion.w, motion.h);
@@ -134,6 +166,12 @@ function loop(now) {
 
   hud.clear();
   hud.drawMotionPoints(lastMotionResult.points, lastMotionResult.scaleX, lastMotionResult.scaleY);
+
+  if (autoScanEnabled) {
+    hud.drawDetections(latestDetections, 1, 1); // detectFull already returns source-canvas coords
+  } else if (latestDetections.length) {
+    latestDetections = [];
+  }
 
   if (tracker.state !== 'idle') {
     const upd = tracker.update(lastMotionResult, lastGray, motion.w, motion.h);
