@@ -11,6 +11,7 @@ const APP_SHELL = [
   './src/kalman.js',
   './src/opticalFlow.js',
   './src/tracker.js',
+  './src/detectionTracker.js',
   './src/yolo.js',
   './src/hud.js',
   './src/ui.js',
