@@ -4,6 +4,7 @@ import { Tracker } from './tracker.js';
 import { YoloTagger } from './yolo.js';
 import { Hud } from './hud.js';
 import { setupUI, setStats } from './ui.js';
+import { DetectionTracker } from './detectionTracker.js';
 
 const videoEl = document.getElementById('video');
 const viewCanvas = document.getElementById('viewCanvas');
@@ -15,6 +16,7 @@ const motion = new MotionDetector({ width: 320, height: 240 });
 const yolo = new YoloTagger();
 const tracker = new Tracker(yolo);
 const hud = new Hud(hudCanvas);
+const detectionTracker = new DetectionTracker();
 
 let running = false;
 let lastFrameTime = performance.now();
@@ -41,7 +43,7 @@ setupUI({
   onMaxPoints: (v) => motion.setMaxPoints(v),
   onLockRadius: (v) => tracker.setLockRadius(v),
   onMaxBlobSize: (v) => tracker.setMaxBlobArea(v),
-  onAutoScanToggle: (on) => { autoScanEnabled = on; if (on) scheduleAutoScan(); },
+  onAutoScanToggle: (on) => { autoScanEnabled = on; if (on) scheduleAutoScan(); else detectionTracker.reset(); },
   onScanConfidence: (v) => { scanConfidence = v; }
 });
 
@@ -103,8 +105,7 @@ let lastGray = null;
 let autoScanEnabled = false;
 let autoScanBusy = false;
 let scanConfidence = 0.35;
-let latestDetections = [];
-const AUTO_SCAN_MIN_INTERVAL = 350; // ms floor between passes even if inference is fast
+const AUTO_SCAN_MIN_INTERVAL = 600; // ms floor between passes — even off-thread, frequent big inference passes drain battery/heat fast
 
 function scheduleAutoScan() {
   if (!autoScanEnabled || autoScanBusy) return;
@@ -114,7 +115,7 @@ function scheduleAutoScan() {
   const startedAt = performance.now();
 
   yolo.detectFull(viewCanvas, { scoreThreshold: scanConfidence })
-    .then((dets) => { latestDetections = dets; })
+    .then((dets) => { detectionTracker.onNewPass(dets); })
     .catch(() => { /* skip a bad frame silently, keep scanning */ })
     .finally(() => {
       autoScanBusy = false;
@@ -168,9 +169,8 @@ function loop(now) {
   hud.drawMotionPoints(lastMotionResult.points, lastMotionResult.scaleX, lastMotionResult.scaleY);
 
   if (autoScanEnabled) {
-    hud.drawDetections(latestDetections, 1, 1); // detectFull already returns source-canvas coords
-  } else if (latestDetections.length) {
-    latestDetections = [];
+    const smoothed = detectionTracker.tick();
+    hud.drawDetections(smoothed, 1, 1); // detectFull already returns source-canvas coords
   }
 
   if (tracker.state !== 'idle') {
