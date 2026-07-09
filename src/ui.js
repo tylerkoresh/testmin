@@ -66,6 +66,13 @@ export function setupUI(handlers) {
     $('lockRadVal').textContent = v;
     handlers.onLockRadius(v);
   });
+
+  const maxSizeSlider = $('maxSizeSlider');
+  maxSizeSlider.addEventListener('input', () => {
+    const v = parseInt(maxSizeSlider.value, 10);
+    $('maxSizeVal').textContent = v;
+    handlers.onMaxBlobSize(v);
+  });
 }
 
 export function setStats({ fps, motionPts, lockState, zoom }) {
